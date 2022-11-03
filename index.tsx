@@ -1,8 +1,10 @@
+const isText = (item) => typeof item === 'string' || typeof item === 'number';
+
 const createTextElement = (text: string) => {
   return {
     type: "TEXT_ELEMENT",
     props: {
-      nodeValue: text,
+      nodeValue: isText(text) ? text : '',
       children: [],
     },
   };
@@ -13,7 +15,7 @@ const createElement = (type, props, ...children) => {
     type,
     props: {
       ...props,
-      children: children.map((child) =>
+      children: children.map((child) => 
         typeof child === "object" ? child : createTextElement(child)
       ),
     },
@@ -21,18 +23,11 @@ const createElement = (type, props, ...children) => {
 
   
   if (typeof type === "function") {
-    return type(element);
+    return type(element)
   }
   
   return element;
 };
-
-const reRender = () => {
-  const container = document.getElementById("root");
-  container.innerHTML = "";
-  index = 0;
-  render(<App />, document.querySelector("#root"));
-}
 
 const hooks = [];
 let index = 0; 
@@ -41,7 +36,11 @@ const useState = (initialValue) => {
   hooks[currentIndex] = hooks[currentIndex] || initialValue;
   index++;
   const setState = (newValue) => {
-    hooks[currentIndex] = newValue;
+    if (typeof newValue === "function") {
+      hooks[currentIndex] = newValue(hooks[currentIndex]);
+    } else {
+      hooks[currentIndex] = newValue;
+    }
 
     reRender();
   }
@@ -67,23 +66,53 @@ const useEffect = (cb: () =>void, dependencyArray: unknown[]) => {
   index++;
 }
 
-
-const render = (element, container) => {
+const render = (element, container?: HTMLElement) => {
   const vDOM = element.type === "TEXT_ELEMENT" ? document.createTextNode(element.nodeValue) : document.createElement(element.type);
+
+  const fatherContainer = container || _DOM.rootContainer;
 
     Object.keys(element.props)
       .filter(key => key !== "children")
       .forEach(name => {
-        vDOM[name] = element.props[name];
+        if (name.startsWith("on")) {
+          vDOM.addEventListener(name.substring(2).toLowerCase(), element.props[name]);
+        }else if(name === "style") {
+          Object.assign(vDOM.style, element.props[name]);
+        } else {
+          vDOM[name] = element.props[name];
+        }
       });
 
 
     element.props.children.forEach(child => {
-      render(child, vDOM);
+      if (Array.isArray(child)) {
+        child.forEach(c => render(c, vDOM));
+      } else {
+        render(child, vDOM);
+      }
     });
 
 
-  container.appendChild(vDOM);
+  fatherContainer.appendChild(vDOM);
+  index = 0;
+}
+
+const _DOM = {
+  rootContainer: null,
+  virtualDOM: null,
+}
+
+const reRender = () => {
+  _DOM.rootContainer.innerHTML = "";
+  render(<App />);
+}
+
+
+const createRoot = (rootContainer: HTMLElement) => {
+  _DOM.rootContainer = rootContainer;
+  return {
+    render,
+  }
 }
 
 const React = {
@@ -93,20 +122,58 @@ const React = {
 
 const App = () => {
   const [counter, setCounter] = useState(0);
+  const [users, setUsers] = useState([]);
 
+  const removeUser = (id) => {
+    setUsers(users.filter(user => user.id !== id));
+  }
 
   useEffect(() => {
-    document.title = (`You clicked ${counter} times`);
-  }, []);
+    document.title = `Você clicou ${counter} vezes`;
+  }, [counter])
 
+  useEffect(() => {
+    (async () => {
+      const me = await fetch('https://api.github.com/users/LucasVeloz');
+      const response = await fetch('https://api.github.com/users')
+      setUsers([await me.json(), ...(await response.json())]);
+    })()
+  }, [])
+
+  
   return (
     <div>
-      <h1>hello world</h1>
-      <button onclick={()=>setCounter(counter+1)}>teste</button>
-      <h1>cliques {counter}</h1>
+      <button 
+        onClick={() => setCounter(oldState => oldState + 1)}
+        style={{
+          width: '100%',
+          'background-color': 'red',
+        }}
+      >
+        {counter}
+      </button>
+      <div style={{
+          display: 'flex',
+          'flex-wrap': 'wrap',
+      }}>
+        {users.map(user => 
+          <button onClick={() => removeUser(user.id)}>
+            <img 
+              src={user.avatar_url} 
+              loading="lazy" 
+              style={{
+                width: '100px',
+                height: '100px',
+              }}
+              />
+            <p>{user.login}</p>
+          </button>
+        )}
+      </div>
     </div>
   )
 }
 
 
-render(<App />, document.querySelector("#root"));
+createRoot(document.getElementById("root")).render(<App />);
+
