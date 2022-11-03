@@ -66,7 +66,10 @@ const useEffect = (cb: () =>void, dependencyArray: unknown[]) => {
   index++;
 }
 
-const render = (element, container?: HTMLElement) => {
+const render = (element, container?: HTMLElement, i=0) => {
+  const timer = 'render -----> ' + i;
+  const nextValue = i + 1;
+  console.time(timer);
   const vDOM = element.type === "TEXT_ELEMENT" ? document.createTextNode(element.nodeValue) : document.createElement(element.type);
 
   const fatherContainer = container || _DOM.rootContainer;
@@ -86,15 +89,16 @@ const render = (element, container?: HTMLElement) => {
 
     element.props.children.forEach(child => {
       if (Array.isArray(child)) {
-        child.forEach(c => render(c, vDOM));
+        child.forEach(c => render(c, vDOM, nextValue));
       } else {
-        render(child, vDOM);
+        render(child, vDOM, nextValue);
       }
     });
 
 
   fatherContainer.appendChild(vDOM);
   index = 0;
+  console.timeEnd(timer);
 }
 
 const _DOM = {
