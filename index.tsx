@@ -22,12 +22,13 @@ const createElement = (type, props, ...children) => {
   };
 
   
-  if (typeof type === "function") {
-    return type(element)
-  }
+  // if (typeof type === "function") {
+  //   return type(element)
+  // }
   
   return element;
 };
+
 
 const hooks = [];
 let index = 0; 
@@ -66,10 +67,7 @@ const useEffect = (cb: () =>void, dependencyArray: unknown[]) => {
   index++;
 }
 
-const render = (element, container?: HTMLElement, i=0) => {
-  const timer = 'render -----> ' + i;
-  const nextValue = i + 1;
-  console.time(timer);
+const render = (element, container?: HTMLElement) => {
   const vDOM = element.type === "TEXT_ELEMENT" ? document.createTextNode(element.nodeValue) : document.createElement(element.type);
 
   const fatherContainer = container || _DOM.rootContainer;
@@ -89,16 +87,15 @@ const render = (element, container?: HTMLElement, i=0) => {
 
     element.props.children.forEach(child => {
       if (Array.isArray(child)) {
-        child.forEach(c => render(c, vDOM, nextValue));
+        child.forEach(c => render(c, vDOM));
       } else {
-        render(child, vDOM, nextValue);
+        render(child, vDOM);
       }
     });
 
 
   fatherContainer.appendChild(vDOM);
   index = 0;
-  console.timeEnd(timer);
 }
 
 const _DOM = {
@@ -106,16 +103,34 @@ const _DOM = {
   virtualDOM: null,
 }
 
+let renders = 1;
 const reRender = () => {
-  _DOM.rootContainer.innerHTML = "";
-  render(<App />);
+  const timer = 're-render -----> ' + renders++;
+  console.time(timer);
+  dispatchRender();
+  console.timeEnd(timer);
 }
+
+const dispatchRender = () => {
+  _DOM.rootContainer.innerHTML = "";
+  render(createType(_DOM.virtualDOM), _DOM.rootContainer);
+} 
+
+
+const createType = (element) => {
+  if (typeof element.type === 'function') return element.type(element)
+  return element;
+};
 
 
 const createRoot = (rootContainer: HTMLElement) => {
   _DOM.rootContainer = rootContainer;
   return {
-    render,
+    render: (element) => {
+      _DOM.virtualDOM = element;
+      const newElement = createType(element);
+      render(newElement, rootContainer);
+    },
   }
 }
 
@@ -129,7 +144,7 @@ const App = () => {
   const [users, setUsers] = useState([]);
 
   const removeUser = (id) => {
-    setUsers(users.filter(user => user.id !== id));
+    setUsers(oldState=> oldState.filter(user => user.id !== id));
   }
 
   useEffect(() => {
@@ -177,7 +192,6 @@ const App = () => {
     </div>
   )
 }
-
 
 createRoot(document.getElementById("root")).render(<App />);
 
