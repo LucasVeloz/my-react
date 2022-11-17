@@ -10,28 +10,31 @@ const createTextElement = (text: string) => {
   };
 };
 
-const createElement = (type, props, ...children) => {
+const createElement = (
+  type: keyof HTMLElementTagNameMap | (() => void),
+  props: {
+    style: Record<string, string>,
+    onClick: () => void,
+  },
+  ...children
+) => {
   const element = {
     type,
     props: {
       ...props,
-      children: children.map((child) => 
+      children: children.map((child) =>
         typeof child === "object" ? child : createTextElement(child)
       ),
     },
   };
 
-  
-  // if (typeof type === "function") {
-  //   return type(element)
-  // }
-  
   return element;
 };
 
-
 const hooks = [];
-let index = 0; 
+const contexts = [];
+let index = 0;
+let contextIndex = 0;
 const useState = (initialValue) => {
   const currentIndex = index;
   hooks[currentIndex] = hooks[currentIndex] || initialValue;
@@ -49,9 +52,21 @@ const useState = (initialValue) => {
   return [hooks[currentIndex], setState];
 }
 
+const useReducer = (reducer, initialValue) => {
+  const currentIndex = index;
+  hooks[currentIndex] = hooks[currentIndex] || initialValue;
+  index++;
+  const dispatch = (action) => {
+    hooks[currentIndex] = reducer(hooks[currentIndex], action);
+    reRender();
+  }
+
+  return [hooks[currentIndex], dispatch];
+}
+
 const useEffect = (cb: () =>void, dependencyArray: unknown[]) => {
   const currentIndex = index;
-  
+
   const hasChanged = dependencyArray.some((item, i) => {
     if (hooks[currentIndex]) {
       return item !== hooks[currentIndex][i];
@@ -67,8 +82,61 @@ const useEffect = (cb: () =>void, dependencyArray: unknown[]) => {
   index++;
 }
 
+const useMemo = (cb: () => void, dependencyArray: unknown[]) => {
+  const currentIndex = index;
+
+  const hasChanged = dependencyArray.some((item, i) => {
+    if (hooks[currentIndex]) {
+      return item !== hooks[currentIndex].dep[i];
+    }
+    return false;
+  });
+
+  if (hasChanged || !hooks[currentIndex]) hooks[currentIndex] = { dep: dependencyArray, value: cb() };
+
+  index++;
+
+  return hooks[currentIndex].value;
+}
+
+const memo = (Component) => {
+  // a fazer
+  return (props) => {
+    return Component(props);
+  }
+}
+
+const createContext = (defaultValue) => {
+  const currentIndex = contextIndex;
+  contexts[currentIndex] = defaultValue;
+  contextIndex++;
+
+  return {
+    __currentValue: currentIndex,
+    Provider: ({ value, children }) => {
+      contexts[currentIndex] = value;
+      return children[0];
+    }
+  };
+}
+
+const useContext = (context) => {
+  return contexts[context.__currentValue];
+}
+
+const createNode = (element) => {
+  if (element.type === "TEXT_ELEMENT") {
+    return document.createTextNode(element.props.nodeValue);
+  }
+  return document.createElement(element.type);
+}
+
 const render = (element, container?: HTMLElement) => {
-  const vDOM = element.type === "TEXT_ELEMENT" ? document.createTextNode(element.nodeValue) : document.createElement(element.type);
+  if (typeof element.type === 'function') {
+    return render(element.type(element.props), container)
+  }
+  const vDOM = createNode(element);
+
 
   const fatherContainer = container || _DOM.rootContainer;
 
@@ -95,7 +163,7 @@ const render = (element, container?: HTMLElement) => {
 
 
   fatherContainer.appendChild(vDOM);
-  index = 0;
+  hooks.length
 }
 
 const _DOM = {
@@ -107,14 +175,17 @@ let renders = 1;
 const reRender = () => {
   const timer = 're-render -----> ' + renders++;
   console.time(timer);
+  index = 0;
   dispatchRender();
   console.timeEnd(timer);
+  console.log(hooks)
+
 }
 
 const dispatchRender = () => {
   _DOM.rootContainer.innerHTML = "";
   render(createType(_DOM.virtualDOM), _DOM.rootContainer);
-} 
+}
 
 
 const createType = (element) => {
@@ -138,10 +209,64 @@ const React = {
   createElement,
 }
 
+const navigationContext = createContext({});
 
-const App = () => {
+const NavigationContainer = ({ children = [] }) => {
+  const screens = children.map(item => item.props);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const Item = screens[activeIndex].component;
+
+  const navigate = (name) => {
+    const currentIndex = screens.findIndex(item => item.name === name);
+    setActiveIndex(currentIndex);
+  }
+
+  return (
+    <navigationContext.Provider value={{ navigate }}>
+      <Item navigate={navigate} />
+    </navigationContext.Provider>
+  )
+}
+
+const ScreenComponent = (_:{ name, component }) => {
+  return null;
+}
+
+const Link = ({ to }) => {
+  const { navigate } = useContext(navigationContext);
+  const onClick = (e) => {
+    e.preventDefault();
+    window.history.pushState({}, '', to);
+    navigate(to);
+  }
+
+  return <a href={to} onClick={onClick} >{to}</a>
+}
+
+
+const Card = memo(({ user, removeUser }) => {
+  return (
+    <button onClick={() => removeUser(user.id)}>
+      <img
+        src={user.avatar_url}
+        loading="lazy"
+        style={{
+          width: '100px',
+          height: '100px',
+        }}
+        />
+      <p>{user.login}</p>
+    </button>
+  )
+});
+
+const First = () => {
   const [counter, setCounter] = useState(0);
   const [users, setUsers] = useState([]);
+
+  const value = useMemo(() => {
+    return Array.from({ length: 100000000 }).fill(1).reduce((acc, item) => acc + item, 0);
+  }, [counter]);
 
   const removeUser = (id) => {
     setUsers(oldState=> oldState.filter(user => user.id !== id));
@@ -159,10 +284,11 @@ const App = () => {
     })()
   }, [])
 
-  
+
   return (
     <div>
-      <button 
+      <Link to={`second ${value}`} />
+      <button
         onClick={() => setCounter(oldState => oldState + 1)}
         style={{
           width: '100%',
@@ -175,23 +301,45 @@ const App = () => {
           display: 'flex',
           'flex-wrap': 'wrap',
       }}>
-        {users.map(user => 
-          <button onClick={() => removeUser(user.id)}>
-            <img 
-              src={user.avatar_url} 
-              loading="lazy" 
-              style={{
-                width: '100px',
-                height: '100px',
-              }}
-              />
-            <p>{user.login}</p>
-          </button>
-        )}
+        {users.map(user => <Card user={user} removeUser={removeUser} />)}
       </div>
     </div>
   )
 }
 
-createRoot(document.getElementById("root")).render(<App />);
+const reducer = (state, action) => {
+  switch (action.type) {
+    case 'increment':
+      return { counter: state.counter + 1 };
+    case 'decrement':
+      return { counter: state.counter - 1 };
+    default:
+  }
+}
+const Second = () => {
+  const [state, dispatcher] = useReducer(reducer, { counter: 0 });
 
+
+  return (
+    <div>
+      <h1>Second</h1>
+      <Link to="first" />
+      <button
+        onClick={() => dispatcher({ type: 'increment' })}
+      >
+        Count: {state.counter}
+      </button>
+    </div>
+  )
+}
+
+const App = () => {
+  return (
+    <NavigationContainer>
+      <ScreenComponent name="first" component={First} />
+      <ScreenComponent name="second" component={Second} />
+    </NavigationContainer>
+  )
+}
+
+createRoot(document.getElementById("root")).render(<App />);
