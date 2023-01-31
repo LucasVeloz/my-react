@@ -4,7 +4,8 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "start": "yarn parcel index.html"
+    "start": "yarn parcel index.html",
+    "build": "yarn parcel build index.html"
   },
   "devDependencies": {
     "parcel": "^2.7.0",
