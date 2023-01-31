@@ -1,8 +1,6 @@
 {
   "name": "my-react",
   "version": "1.0.0",
-  "main": "index.tsx",
-  "license": "MIT",
   "scripts": {
     "start": "yarn parcel index.html",
     "build": "yarn parcel build index.html"
