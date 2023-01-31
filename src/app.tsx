@@ -7,7 +7,8 @@ export default function App() {
 
   return (
     <div>
-      <h1>Todo List</h1>
+      <h1>Esse site usa meu próprio react, usando um primitivo stack renderer</h1>
+      <h3>Todo List</h3>
       <input type="text" value={state.input} onChange={(e) => updateInput(e.target.value)} />
       <button
         onClick={() => addTodo({
