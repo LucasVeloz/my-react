@@ -147,13 +147,6 @@ const render = (element, container?: HTMLElement) => {
           element.props[name].current = vDOM
         }
         if (name.startsWith("on")) {
-          if (name === 'onChange') {
-            vDOM.addEventListener('input', (e) => {
-              element.props[name](e)
-            });
-            setTimeout(() => vDOM.focus(), 0.1)
-            return;
-          }
           vDOM.addEventListener(name.substring(2).toLowerCase(), element.props[name]);
         }else if(name === "style") {
           // console.log(vDOM.style, element.props[name], vDOM[name])
