@@ -1,4 +1,7 @@
-import React from './react';
+import React, { createRoot } from './react'
 import App from './src/app';
 
-React.createRoot(document.getElementById("root")).render(<App />);
+const rootElement = document.getElementById("root");
+
+createRoot(rootElement)
+  .render(<App />);
